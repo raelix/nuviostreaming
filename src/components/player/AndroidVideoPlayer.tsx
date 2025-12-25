@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { View, TouchableOpacity, TouchableWithoutFeedback, Dimensions, Animated, ActivityIndicator, Platform, NativeModules, StatusBar, Text, StyleSheet, Modal, AppState, Image, InteractionManager, TVEventHandler } from 'react-native';
+import { View, TouchableOpacity, TouchableWithoutFeedback, Dimensions, Animated, ActivityIndicator, Platform, NativeModules, StatusBar, Text, StyleSheet, Modal, AppState, Image, InteractionManager } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Video, { VideoRef, SelectedTrack, SelectedTrackType, BufferingStrategyType, ViewType } from 'react-native-video';
 import FastImage from '@d11/react-native-fast-image';
@@ -780,12 +780,19 @@ const AndroidVideoPlayer: React.FC = () => {
   useEffect(() => {
     if (!isTV) return;
 
-    const tvEventHandler = new TVEventHandler();
+    let tvEventHandler: any = null;
 
-    tvEventHandler.enable(undefined, (cmp, evt) => {
-      if (!evt || !evt.eventType) return;
+    try {
+      // TVEventHandler is only available in react-native-tvos
+      const { TVEventHandler } = require('react-native');
+      if (!TVEventHandler) return;
 
-      const { eventType, eventKeyAction } = evt;
+      tvEventHandler = new TVEventHandler();
+
+      tvEventHandler.enable(undefined, (cmp: any, evt: any) => {
+        if (!evt || !evt.eventType) return;
+
+        const { eventType, eventKeyAction } = evt;
 
       // Only handle key down events (action = 0)
       if (eventKeyAction !== 0) return;
@@ -881,10 +888,15 @@ const AndroidVideoPlayer: React.FC = () => {
         default:
           break;
       }
-    });
+      });
+    } catch (e) {
+      // TVEventHandler not available on non-TV platforms
+    }
 
     return () => {
-      tvEventHandler.disable();
+      if (tvEventHandler) {
+        tvEventHandler.disable();
+      }
     };
   }, [isTV, paused, currentTime, duration, showControls, fadeAnim, hideControls, navigation]);
 

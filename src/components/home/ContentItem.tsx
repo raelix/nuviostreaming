@@ -350,13 +350,15 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
           delayLongPress={300}
           onFocus={isTV ? handleTVFocus : undefined}
           onBlur={isTV ? handleTVBlur : undefined}
-          isTVSelectable={isTV}
-          tvParallaxProperties={isTV ? {
-            enabled: true,
-            magnification: 1.05,
-            pressMagnification: 1.0,
-            pressDuration: 0.1,
-          } : undefined}
+          {...(isTV ? {
+            isTVSelectable: true,
+            tvParallaxProperties: {
+              enabled: true,
+              magnification: 1.05,
+              pressMagnification: 1.0,
+              pressDuration: 0.1,
+            },
+          } as any : {})}
         >
           <View ref={itemRef} style={[styles.contentItemContainer, { borderRadius }]}>
             {/* Image with FastImage for aggressive caching */}

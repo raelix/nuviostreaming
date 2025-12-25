@@ -80,14 +80,19 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
     }
   };
 
+  // TV-specific props (only available in react-native-tvos)
+  const tvProps = {
+    hasTVPreferredFocus,
+    isTVSelectable: true,
+  } as any;
+
   return (
     <TouchableOpacity
       onPress={onPress}
       onFocus={onFocus}
       activeOpacity={1}
-      hasTVPreferredFocus={hasTVPreferredFocus}
-      isTVSelectable={true}
       style={styles.itemTouchable}
+      {...tvProps}
     >
       <Animated.View
         style={[

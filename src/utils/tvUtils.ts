@@ -2,7 +2,13 @@
  * TV Utility Module
  * Provides utilities for Google TV / Android TV support
  */
-import { Platform, Dimensions, TVEventHandler } from 'react-native';
+import { Platform, Dimensions } from 'react-native';
+
+// TVEventHandler type - available in react-native-tvos
+type TVEventHandlerType = {
+  enable: (component: any, callback: (cmp: any, evt: any) => void) => void;
+  disable: () => void;
+};
 
 // TV Platform Detection
 // Platform.isTV is available in react-native-tvos
@@ -104,18 +110,27 @@ export const getTVFocusStyle = (isFocused: boolean) => {
 };
 
 // TV Event Handler wrapper for managing remote control events
-let tvEventHandler: TVEventHandler | null = null;
+let tvEventHandler: TVEventHandlerType | null = null;
 const eventListeners: Map<string, (evt: any) => void> = new Map();
 
 export const enableTVEventHandler = () => {
   if (!isTV || tvEventHandler) return;
 
-  tvEventHandler = new TVEventHandler();
-  tvEventHandler.enable(undefined, (cmp, evt) => {
-    eventListeners.forEach((listener) => {
-      listener(evt);
-    });
-  });
+  try {
+    // TVEventHandler is only available in react-native-tvos
+    const { TVEventHandler } = require('react-native');
+    if (TVEventHandler) {
+      const handler = new TVEventHandler();
+      handler.enable(undefined, (cmp: any, evt: any) => {
+        eventListeners.forEach((listener) => {
+          listener(evt);
+        });
+      });
+      tvEventHandler = handler;
+    }
+  } catch (e) {
+    // TVEventHandler not available
+  }
 };
 
 export const disableTVEventHandler = () => {
