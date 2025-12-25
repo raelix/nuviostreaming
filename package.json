@@ -6,6 +6,9 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "tv": "EXPO_TV=1 expo run:android",
+    "tv:prebuild": "EXPO_TV=1 npx expo prebuild --clean",
+    "tv:build": "EXPO_TV=1 eas build -p android --profile tv",
     "postinstall": "patch-package"
   },
   "dependencies": {
@@ -65,7 +68,7 @@
     "lottie-react-native": "~7.3.1",
     "posthog-react-native": "^4.4.0",
     "react": "19.1.0",
-    "react-native": "0.81.4",
+    "react-native": "npm:react-native-tvos@0.81.4-0",
     "react-native-boost": "^0.6.2",
     "react-native-bottom-tabs": "^1.0.2",
     "react-native-gesture-handler": "^2.29.1",
@@ -91,6 +94,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@react-native-tvos/config-tv": "^0.1.2",
     "@types/crypto-js": "^4.2.2",
     "@types/react": "~18.3.12",
     "@types/react-native": "^0.72.8",
@@ -100,6 +104,11 @@
     "react-native-svg-transformer": "^1.5.0",
     "typescript": "^5.3.3",
     "xcode": "^3.0.1"
+  },
+  "expo": {
+    "install": {
+      "exclude": ["react-native"]
+    }
   },
   "private": true
 }

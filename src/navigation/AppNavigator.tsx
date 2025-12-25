@@ -17,6 +17,10 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { useTheme } from '../contexts/ThemeContext';
 import { PostHogProvider } from 'posthog-react-native';
 
+// TV Support imports
+import { isTV, isAndroidTV, TV_DIMENSIONS, TV_SAFE_AREA } from '../utils/tvUtils';
+import TVSidebar from '../components/tv/TVSidebar';
+
 // Optional iOS Glass effect (expo-glass-effect) with safe fallback
 let GlassViewComp: any = null;
 let liquidGlassAvailable = false;
@@ -602,6 +606,17 @@ const MainTabs = () => {
       return null;
     }
 
+    // TV: Use sidebar navigation for Google TV / Android TV
+    if (isTV) {
+      return (
+        <TVSidebar
+          state={props.state}
+          descriptors={props.descriptors}
+          navigation={props.navigation}
+        />
+      );
+    }
+
     // Get current route name to determine if we should keep navigation fixed
     const currentRoute = props.state.routes[props.state.index]?.name;
     const shouldKeepFixed = currentRoute === 'Search' || currentRoute === 'Library';
@@ -984,6 +999,12 @@ const MainTabs = () => {
             elevation: 0,
             backgroundColor: currentTheme.colors.darkBackground,
           },
+          // TV: Add left padding for sidebar
+          sceneContainerStyle: isTV ? {
+            paddingLeft: TV_DIMENSIONS.SIDEBAR_WIDTH,
+            paddingTop: TV_SAFE_AREA.top,
+            paddingRight: TV_SAFE_AREA.right,
+          } : undefined,
           // Ensure background tabs are frozen and detached
           freezeOnBlur: true,
           lazy: true,

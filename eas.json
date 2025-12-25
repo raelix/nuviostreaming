@@ -31,6 +31,22 @@
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"
       }
+    },
+    "tv": {
+      "extends": "apk",
+      "env": {
+        "EXPO_TV": "1"
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      }
+    },
+    "tv-development": {
+      "extends": "development",
+      "env": {
+        "EXPO_TV": "1"
+      }
     }
   },
   "submit": {

@@ -12,7 +12,8 @@ import { mmkvStorage } from '../../services/mmkvStorage';
 import { storageService } from '../../services/storageService';
 import { TraktService } from '../../services/traktService';
 import { useTraktContext } from '../../contexts/TraktContext';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { isTV, TV_FOCUS_BORDER_COLOR, TV_FOCUS_SCALE } from '../../utils/tvUtils';
 
 interface ContentItemProps {
   item: StreamingContent;
@@ -84,6 +85,26 @@ const POSTER_WIDTH = posterLayout.posterWidth;
 const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, deferMs = 0 }: ContentItemProps) => {
   // Track inLibrary status locally to force re-render
   const [inLibrary, setInLibrary] = useState(!!item.inLibrary);
+
+  // TV Focus state for D-pad navigation
+  const [isTVFocused, setIsTVFocused] = useState(false);
+  const tvFocusScale = useSharedValue(1);
+
+  const tvFocusAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: tvFocusScale.value }],
+    };
+  });
+
+  const handleTVFocus = useCallback(() => {
+    setIsTVFocused(true);
+    tvFocusScale.value = withSpring(TV_FOCUS_SCALE, { damping: 15, stiffness: 150 });
+  }, [tvFocusScale]);
+
+  const handleTVBlur = useCallback(() => {
+    setIsTVFocused(false);
+    tvFocusScale.value = withSpring(1, { damping: 15, stiffness: 150 });
+  }, [tvFocusScale]);
 
   useEffect(() => {
     // Subscribe to library updates and update local state if this item's status changes
@@ -301,13 +322,41 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
 
   return (
     <>
-      <Animated.View style={[styles.itemContainer, { width: finalWidth }]} entering={FadeIn.duration(300)}>
+      <Animated.View
+        style={[
+          styles.itemContainer,
+          { width: finalWidth },
+          isTV && tvFocusAnimatedStyle,
+        ]}
+        entering={FadeIn.duration(300)}
+      >
         <TouchableOpacity
-          style={[styles.contentItem, { width: finalWidth, aspectRatio: finalAspectRatio, borderRadius }]}
-          activeOpacity={0.7}
+          style={[
+            styles.contentItem,
+            { width: finalWidth, aspectRatio: finalAspectRatio, borderRadius },
+            isTV && isTVFocused && {
+              borderWidth: 3,
+              borderColor: TV_FOCUS_BORDER_COLOR,
+              shadowColor: TV_FOCUS_BORDER_COLOR,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.5,
+              shadowRadius: 8,
+              elevation: 8,
+            },
+          ]}
+          activeOpacity={isTV ? 1 : 0.7}
           onPress={handlePress}
           onLongPress={handleLongPress}
           delayLongPress={300}
+          onFocus={isTV ? handleTVFocus : undefined}
+          onBlur={isTV ? handleTVBlur : undefined}
+          isTVSelectable={isTV}
+          tvParallaxProperties={isTV ? {
+            enabled: true,
+            magnification: 1.05,
+            pressMagnification: 1.0,
+            pressDuration: 0.1,
+          } : undefined}
         >
           <View ref={itemRef} style={[styles.contentItemContainer, { borderRadius }]}>
             {/* Image with FastImage for aggressive caching */}

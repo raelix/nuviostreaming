@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { View, TouchableOpacity, TouchableWithoutFeedback, Dimensions, Animated, ActivityIndicator, Platform, NativeModules, StatusBar, Text, StyleSheet, Modal, AppState, Image, InteractionManager } from 'react-native';
+import { View, TouchableOpacity, TouchableWithoutFeedback, Dimensions, Animated, ActivityIndicator, Platform, NativeModules, StatusBar, Text, StyleSheet, Modal, AppState, Image, InteractionManager, TVEventHandler } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Video, { VideoRef, SelectedTrack, SelectedTrackType, BufferingStrategyType, ViewType } from 'react-native-video';
 import FastImage from '@d11/react-native-fast-image';
@@ -18,6 +18,7 @@ import { useTraktAutosyncSettings } from '../../hooks/useTraktAutosyncSettings';
 import { useMetadata } from '../../hooks/useMetadata';
 import { useSettings } from '../../hooks/useSettings';
 import { usePlayerGestureControls } from '../../hooks/usePlayerGestureControls';
+import { isTV, isAndroidTV } from '../../utils/tvUtils';
 
 import {
   DEFAULT_SUBTITLE_SIZE,
@@ -775,6 +776,117 @@ const AndroidVideoPlayer: React.FC = () => {
     }).start(() => setShowControls(false));
   };
 
+  // TV Remote Control Handler for Google TV / Android TV
+  useEffect(() => {
+    if (!isTV) return;
+
+    const tvEventHandler = new TVEventHandler();
+
+    tvEventHandler.enable(undefined, (cmp, evt) => {
+      if (!evt || !evt.eventType) return;
+
+      const { eventType, eventKeyAction } = evt;
+
+      // Only handle key down events (action = 0)
+      if (eventKeyAction !== 0) return;
+
+      switch (eventType) {
+        case 'select':
+        case 'playPause':
+          // Toggle play/pause
+          setPaused(prev => !prev);
+          // Show controls when interacting
+          if (!showControls) {
+            setShowControls(true);
+            fadeAnim.setValue(1);
+          }
+          // Reset hide timer
+          if (controlsTimeout.current) {
+            clearTimeout(controlsTimeout.current);
+          }
+          controlsTimeout.current = setTimeout(hideControls, 5000);
+          break;
+
+        case 'left':
+          // Seek backward 10 seconds
+          if (videoRef.current && duration > 0) {
+            const newTime = Math.max(0, currentTime - 10);
+            videoRef.current.seek(newTime);
+            setCurrentTime(newTime);
+          }
+          // Show controls
+          if (!showControls) {
+            setShowControls(true);
+            fadeAnim.setValue(1);
+          }
+          if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
+          controlsTimeout.current = setTimeout(hideControls, 5000);
+          break;
+
+        case 'right':
+          // Seek forward 10 seconds
+          if (videoRef.current && duration > 0) {
+            const newTime = Math.min(duration - END_EPSILON, currentTime + 10);
+            videoRef.current.seek(newTime);
+            setCurrentTime(newTime);
+          }
+          // Show controls
+          if (!showControls) {
+            setShowControls(true);
+            fadeAnim.setValue(1);
+          }
+          if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
+          controlsTimeout.current = setTimeout(hideControls, 5000);
+          break;
+
+        case 'up':
+        case 'down':
+          // Show/hide controls on up/down
+          if (showControls) {
+            hideControls();
+          } else {
+            setShowControls(true);
+            fadeAnim.setValue(1);
+            if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
+            controlsTimeout.current = setTimeout(hideControls, 5000);
+          }
+          break;
+
+        case 'rewind':
+          // Fast rewind - seek back 30 seconds
+          if (videoRef.current && duration > 0) {
+            const newTime = Math.max(0, currentTime - 30);
+            videoRef.current.seek(newTime);
+            setCurrentTime(newTime);
+          }
+          break;
+
+        case 'fastForward':
+          // Fast forward - seek ahead 30 seconds
+          if (videoRef.current && duration > 0) {
+            const newTime = Math.min(duration - END_EPSILON, currentTime + 30);
+            videoRef.current.seek(newTime);
+            setCurrentTime(newTime);
+          }
+          break;
+
+        case 'back':
+        case 'menu':
+          // Back button - exit player
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          }
+          break;
+
+        default:
+          break;
+      }
+    });
+
+    return () => {
+      tvEventHandler.disable();
+    };
+  }, [isTV, paused, currentTime, duration, showControls, fadeAnim, hideControls, navigation]);
 
   const onPinchGestureEvent = (event: PinchGestureHandlerGestureEvent) => {
     // Zoom disabled

@@ -18,8 +18,10 @@ import {
   Pressable,
   Alert,
   InteractionManager,
-  AppState
+  AppState,
+  TVFocusGuideView,
 } from 'react-native';
+import { isTV, TV_DIMENSIONS, scaleForTV } from '../utils/tvUtils';
 import { FlashList } from '@shopify/flash-list';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NavigationProp } from '@react-navigation/native';
