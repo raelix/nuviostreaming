@@ -27,6 +27,7 @@ import { logger } from '../utils/logger';
 import CustomAlert from '../components/CustomAlert';
 import { mmkvStorage } from '../services/mmkvStorage';
 import axios from 'axios';
+import { isTV, TV_FOCUS_BORDER_COLOR } from '../utils/tvUtils';
 
 const ANDROID_STATUSBAR_HEIGHT = StatusBar.currentHeight || 0;
 const TORBOX_STORAGE_KEY = 'torbox_debrid_config';

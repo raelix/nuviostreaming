@@ -11,6 +11,7 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
+import { isTV, TV_FOCUS_BORDER_COLOR, TV_DIMENSIONS, addTVEventListener, removeTVEventListener } from '../../utils/tvUtils';
 import { NavigationProp, useNavigation, useIsFocused } from '@react-navigation/native';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -160,6 +161,10 @@ const AppleTVHero: React.FC<AppleTVHeroProps> = ({
   const [isWatched, setIsWatched] = useState(false);
   const [playButtonText, setPlayButtonText] = useState('Play');
   const [type, setType] = useState<'movie' | 'series'>('movie');
+
+  // TV Focus state for buttons
+  const [playButtonFocused, setPlayButtonFocused] = useState(false);
+  const [saveButtonFocused, setSaveButtonFocused] = useState(false);
 
   // Create internal scrollY if not provided externally
   const internalScrollY = useSharedValue(0);
@@ -817,6 +822,29 @@ const AppleTVHero: React.FC<AppleTVHeroProps> = ({
     setCurrentIndex((prev) => (prev + 1) % items.length);
   }, [items.length]);
 
+  // TV D-pad navigation for carousel
+  useEffect(() => {
+    if (!isTV || items.length <= 1) return;
+
+    const handleTVEvent = (evt: any) => {
+      const eventType = evt?.eventType || evt?.type;
+
+      if (eventType === 'left') {
+        lastInteractionRef.current = Date.now();
+        goToPrevious();
+      } else if (eventType === 'right') {
+        lastInteractionRef.current = Date.now();
+        goToNext();
+      }
+    };
+
+    addTVEventListener('appleTVHero', handleTVEvent);
+
+    return () => {
+      removeTVEventListener('appleTVHero');
+    };
+  }, [items.length, goToPrevious, goToNext]);
+
   // Callback for setting next preview index
   const setPreviewIndex = useCallback((index: number) => {
     setNextIndex(index);
@@ -1254,27 +1282,41 @@ const AppleTVHero: React.FC<AppleTVHeroProps> = ({
           <View style={styles.buttonsContainer}>
             {/* Play Button */}
             <TouchableOpacity
-              style={[styles.playButton]}
+              style={[
+                styles.playButton,
+                isTV && styles.tvPlayButton,
+                isTV && playButtonFocused && styles.tvButtonFocused,
+              ]}
               onPress={handlePlayAction}
               activeOpacity={0.85}
+              onFocus={() => setPlayButtonFocused(true)}
+              onBlur={() => setPlayButtonFocused(false)}
+              {...(isTV ? { hasTVPreferredFocus: true, isTVSelectable: true } as any : {})}
             >
               <MaterialIcons
                 name={playButtonText === 'Resume' ? "replay" : "play-arrow"}
-                size={24}
+                size={isTV ? 32 : 24}
                 color="#000"
               />
-              <Text style={styles.playButtonText}>{playButtonText}</Text>
+              <Text style={[styles.playButtonText, isTV && styles.tvPlayButtonText]}>{playButtonText}</Text>
             </TouchableOpacity>
 
             {/* Save Button */}
             <TouchableOpacity
-              style={styles.saveButton}
+              style={[
+                styles.saveButton,
+                isTV && styles.tvSaveButton,
+                isTV && saveButtonFocused && styles.tvButtonFocused,
+              ]}
               onPress={handleSaveAction}
               activeOpacity={0.85}
+              onFocus={() => setSaveButtonFocused(true)}
+              onBlur={() => setSaveButtonFocused(false)}
+              {...(isTV ? { isTVSelectable: true } as any : {})}
             >
               <MaterialIcons
                 name={inLibrary ? "bookmark" : "bookmark-outline"}
-                size={24}
+                size={isTV ? 32 : 24}
                 color="white"
               />
             </TouchableOpacity>
@@ -1437,13 +1479,37 @@ const styles = StyleSheet.create({
   paginationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 12,
+    gap: isTV ? 16 : 8,
+    marginTop: isTV ? 24 : 12,
   },
   paginationDot: {
-    height: 8,
-    borderRadius: 4,
+    height: isTV ? 12 : 8,
+    borderRadius: isTV ? 6 : 4,
     backgroundColor: 'rgba(255,255,255,0.9)',
+  },
+  // TV-specific button styles
+  tvPlayButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 48,
+    minWidth: 200,
+  },
+  tvPlayButtonText: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  tvSaveButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 36,
+  },
+  tvButtonFocused: {
+    borderWidth: 3,
+    borderColor: TV_FOCUS_BORDER_COLOR,
+    shadowColor: TV_FOCUS_BORDER_COLOR,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 12,
+    transform: [{ scale: 1.08 }],
   },
   bottomBlend: {
     position: 'absolute',

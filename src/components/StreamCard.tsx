@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import QualityBadge from './metadata/QualityBadge';
 import { useSettings } from '../hooks/useSettings';
 import { useDownloads } from '../contexts/DownloadsContext';
 import { useToast } from '../contexts/ToastContext';
+import { isTV, TV_FOCUS_BORDER_COLOR } from '../utils/tvUtils';
 
 interface StreamCardProps {
   stream: Stream;
@@ -38,29 +39,32 @@ interface StreamCardProps {
   parentImdbId?: string;
 }
 
-const StreamCard = memo(({ 
-  stream, 
-  onPress, 
-  index, 
-  isLoading, 
-  statusMessage, 
-  theme, 
-  showLogos, 
-  scraperLogo, 
-  showAlert, 
-  parentTitle, 
-  parentType, 
-  parentSeason, 
-  parentEpisode, 
-  parentEpisodeTitle, 
-  parentPosterUrl, 
-  providerName, 
-  parentId, 
-  parentImdbId 
+const StreamCard = memo(({
+  stream,
+  onPress,
+  index,
+  isLoading,
+  statusMessage,
+  theme,
+  showLogos,
+  scraperLogo,
+  showAlert,
+  parentTitle,
+  parentType,
+  parentSeason,
+  parentEpisode,
+  parentEpisodeTitle,
+  parentPosterUrl,
+  providerName,
+  parentId,
+  parentImdbId
 }: StreamCardProps) => {
   const { settings } = useSettings();
   const { startDownload } = useDownloads();
   const { showSuccess, showInfo } = useToast();
+
+  // TV Focus state
+  const [isFocused, setIsFocused] = useState(false);
   
   // Handle long press to copy stream URL to clipboard
   const handleLongPress = useCallback(async () => {
@@ -181,12 +185,17 @@ const StreamCard = memo(({
         style={[
           styles.streamCard,
           isLoading && styles.streamCardLoading,
-          isDebrid && styles.streamCardHighlighted
+          isDebrid && styles.streamCardHighlighted,
+          isTV && styles.tvStreamCard,
+          isTV && isFocused && styles.tvStreamCardFocused,
         ]}
         onPress={onPress}
         onLongPress={handleLongPress}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
         disabled={isLoading}
-        activeOpacity={0.7}
+        activeOpacity={isTV ? 1 : 0.7}
+        {...(isTV ? { isTVSelectable: true, hasTVPreferredFocus: index === 0 } as any : {})}
       >
         {/* Scraper Logo */}
         {showLogos && scraperLogo && (
@@ -376,6 +385,23 @@ const createStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  // TV-specific styles
+  tvStreamCard: {
+    padding: 20,
+    minHeight: 80,
+    borderRadius: 16,
+  },
+  tvStreamCardFocused: {
+    borderWidth: 3,
+    borderColor: '#2d9cdb',
+    backgroundColor: 'rgba(45, 156, 219, 0.15)',
+    transform: [{ scale: 1.02 }],
+    shadowColor: '#2d9cdb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 8,
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions, FlatList } from 'react-native';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import ContentItem from './ContentItem';
 import Animated, { FadeIn, Layout } from 'react-native-reanimated';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import { isTV as platformIsTV, TV_FOCUS_BORDER_COLOR } from '../../utils/tvUtils';
 
 interface CatalogSectionProps {
   catalog: CatalogContent;
@@ -33,7 +34,8 @@ const getDeviceType = (deviceWidth: number) => {
 const deviceType = getDeviceType(width);
 const isTablet = deviceType === 'tablet';
 const isLargeTablet = deviceType === 'largeTablet';
-const isTV = deviceType === 'tv';
+// Use Platform.isTV for actual TV detection, fallback to screen-based detection
+const isTV = platformIsTV || deviceType === 'tv';
 
 // Dynamic poster calculation based on screen width - show 1/4 of next poster
 const calculatePosterLayout = (screenWidth: number) => {
@@ -75,6 +77,7 @@ const POSTER_WIDTH = posterLayout.posterWidth;
 const CatalogSection = ({ catalog }: CatalogSectionProps) => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { currentTheme } = useTheme();
+  const [viewAllFocused, setViewAllFocused] = useState(false);
 
   const handleContentPress = useCallback((id: string, type: string) => {
     navigation.navigate('Metadata', { id, type, addonId: catalog.addon });
@@ -138,27 +141,31 @@ const CatalogSection = ({ catalog }: CatalogSectionProps) => {
               addonId: catalog.addon
             })
           }
+          onFocus={() => setViewAllFocused(true)}
+          onBlur={() => setViewAllFocused(false)}
           style={[
             styles.viewAllButton,
             {
-              paddingVertical: isTV ? 10 : isLargeTablet ? 9 : isTablet ? 8 : 8,
-              paddingHorizontal: isTV ? 12 : isLargeTablet ? 11 : isTablet ? 10 : 10,
+              paddingVertical: isTV ? 12 : isLargeTablet ? 9 : isTablet ? 8 : 8,
+              paddingHorizontal: isTV ? 16 : isLargeTablet ? 11 : isTablet ? 10 : 10,
               borderRadius: isTV ? 22 : isLargeTablet ? 20 : isTablet ? 20 : 20,
-            }
+            },
+            isTV && viewAllFocused && styles.tvButtonFocused,
           ]}
+          {...(isTV ? { isTVSelectable: true } as any : {})}
         >
           <Text style={[
             styles.viewAllText,
             {
-              color: currentTheme.colors.textMuted,
-              fontSize: isTV ? 16 : isLargeTablet ? 15 : isTablet ? 14 : 14,
+              color: viewAllFocused ? '#fff' : currentTheme.colors.textMuted,
+              fontSize: isTV ? 18 : isLargeTablet ? 15 : isTablet ? 14 : 14,
               marginRight: isTV ? 6 : isLargeTablet ? 5 : 4,
             }
           ]}>View All</Text>
           <MaterialIcons
             name="chevron-right"
             size={isTV ? 24 : isLargeTablet ? 22 : isTablet ? 20 : 20}
-            color={currentTheme.colors.textMuted}
+            color={viewAllFocused ? '#fff' : currentTheme.colors.textMuted}
           />
         </TouchableOpacity>
       </View>
@@ -236,6 +243,13 @@ const styles = StyleSheet.create({
   },
   catalogList: {
     // padding will be applied responsively in JSX
+  },
+  // TV focus style
+  tvButtonFocused: {
+    borderWidth: 2,
+    borderColor: TV_FOCUS_BORDER_COLOR,
+    backgroundColor: 'rgba(45, 156, 219, 0.3)',
+    transform: [{ scale: 1.05 }],
   },
 });
 
