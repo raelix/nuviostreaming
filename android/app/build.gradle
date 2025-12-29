@@ -191,7 +191,13 @@ dependencies {
     }
 }
 
-// Exclude duplicate androidsvg library (jar vs aar conflict)
+// Resolve duplicate androidsvg library conflict (jar vs aar)
+// Both 'androidsvg' and 'androidsvg-aar' are the same library with different packaging.
+// The AAR version is preferred for Android. Substitute jar → aar.
 configurations.all {
-    exclude group: 'com.caverock', module: 'androidsvg'
+    resolutionStrategy {
+        dependencySubstitution {
+            substitute module('com.caverock:androidsvg') using module('com.caverock:androidsvg-aar:1.4')
+        }
+    }
 }

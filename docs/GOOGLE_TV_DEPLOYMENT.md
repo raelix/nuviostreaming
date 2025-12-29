@@ -26,13 +26,20 @@ npm install --legacy-peer-deps
 # 2. Clean and prebuild for TV
 EXPO_TV=1 npx expo prebuild --platform android --clean
 
-# 3. Fix duplicate androidsvg library conflict
+# 3. Fix duplicate androidsvg library conflict (jar vs aar)
+# @d11/react-native-fast-image uses androidsvg (jar) but Glide's SVG decoder
+# pulls in androidsvg-aar. They're the same library, different packaging.
 # Add this to android/app/build.gradle at the end of the file:
 cat >> android/app/build.gradle << 'EOF'
 
-// Exclude duplicate androidsvg library (jar vs aar conflict)
+// Resolve duplicate androidsvg library conflict (jar vs aar)
+// Both are the same library. Substitute jar → aar (preferred for Android).
 configurations.all {
-    exclude group: 'com.caverock', module: 'androidsvg'
+    resolutionStrategy {
+        dependencySubstitution {
+            substitute module('com.caverock:androidsvg') using module('com.caverock:androidsvg-aar:1.4')
+        }
+    }
 }
 EOF
 
