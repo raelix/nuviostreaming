@@ -190,3 +190,8 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+// Exclude duplicate androidsvg library (jar vs aar conflict)
+configurations.all {
+    exclude group: 'com.caverock', module: 'androidsvg'
+}

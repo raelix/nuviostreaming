@@ -20,10 +20,23 @@ This guide explains how to build and deploy Nuvio Media Hub to Google TV or Andr
 ### Option 1: Local Build (Recommended for Testing)
 
 ```bash
-# 1. Clean and prebuild for TV
+# 1. Install dependencies
+npm install --legacy-peer-deps
+
+# 2. Clean and prebuild for TV
 EXPO_TV=1 npx expo prebuild --platform android --clean
 
-# 2. Build the APK
+# 3. Fix duplicate androidsvg library conflict
+# Add this to android/app/build.gradle at the end of the file:
+cat >> android/app/build.gradle << 'EOF'
+
+// Exclude duplicate androidsvg library (jar vs aar conflict)
+configurations.all {
+    exclude group: 'com.caverock', module: 'androidsvg'
+}
+EOF
+
+# 4. Build the APK
 cd android
 ./gradlew assembleRelease
 
