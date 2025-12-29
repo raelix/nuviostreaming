@@ -43,7 +43,22 @@ configurations.all {
 }
 EOF
 
-# 4. Build the APK
+# 4. Fix Kotlin JVM target mismatch (if not already present)
+# Some libraries compile Kotlin to JVM 21 while Java uses 17.
+# Add this to android/build.gradle before the closing of the file:
+cat >> android/build.gradle << 'EOF'
+
+// Fix JVM target mismatch between Java (17) and Kotlin (21)
+subprojects {
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            jvmTarget = "17"
+        }
+    }
+}
+EOF
+
+# 5. Build the APK
 cd android
 ./gradlew assembleRelease
 

@@ -29,22 +29,11 @@ apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
 
 // Fix JVM target mismatch between Java (17) and Kotlin (21)
+// Using configureEach (lazy configuration) instead of afterEvaluate
 subprojects {
-    afterEvaluate { project ->
-        if (project.hasProperty('android')) {
-            project.android {
-                compileOptions {
-                    sourceCompatibility JavaVersion.VERSION_17
-                    targetCompatibility JavaVersion.VERSION_17
-                }
-            }
-        }
-        if (project.hasProperty('kotlin')) {
-            project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-                kotlinOptions {
-                    jvmTarget = "17"
-                }
-            }
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            jvmTarget = "17"
         }
     }
 }
