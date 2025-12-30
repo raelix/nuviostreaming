@@ -1633,7 +1633,11 @@ const AppNavigator = ({ initialRouteName }: { initialRouteName?: keyof RootStack
     apiKey="phc_sk6THCtV3thEAn6cTaA9kL2cHuKDBnlYiSL40ywdS6C"
     options={{
       host: "https://us.i.posthog.com",
+      // Disable automatic screen tracking to avoid useNavigationState errors
+      // when PostHog is rendered outside NavigationContainer
+      captureNativeAppLifecycleEvents: false,
     }}
+    autocapture={false}
   >
     <LoadingProvider>
       <InnerNavigator initialRouteName={initialRouteName} />
