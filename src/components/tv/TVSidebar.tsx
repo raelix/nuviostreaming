@@ -2,13 +2,8 @@
  * TVSidebar Component
  * Modal Navigation Drawer pattern for TV using useTVEventHandler
  *
- * Based on best practices from:
- * - https://github.com/react-native-tvos/react-native-tvos/issues/748
- * - https://dev.to/amazonappdev/tv-navigation-in-react-native-a-guide-to-using-tvfocusguideview-302i
- *
- * Key insight: Don't use onBlur on individual items - it causes flickering
- * when focus moves between items. Instead, use useTVEventHandler to detect
- * when user navigates RIGHT to leave the sidebar.
+ * Key insight: Track focused item INDEX at sidebar level, not in each item.
+ * This prevents multiple items showing as focused and avoids onBlur issues.
  */
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
@@ -37,27 +32,24 @@ interface SidebarItemProps {
   label: string;
   iconName: string;
   isActive: boolean;
+  isFocused: boolean;
   isExpanded: boolean;
-  isSidebarFocused: boolean;
   onPress: () => void;
   onFocus: () => void;
-  index: number;
-  activeIndex: number;
+  hasTVPreferredFocus: boolean;
 }
 
 const SidebarItem: React.FC<SidebarItemProps> = ({
   label,
   iconName,
   isActive,
+  isFocused,
   isExpanded,
-  isSidebarFocused,
   onPress,
   onFocus,
-  index,
-  activeIndex,
+  hasTVPreferredFocus,
 }) => {
   const { currentTheme } = useTheme();
-  const [isFocused, setIsFocused] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const bgAnim = useRef(new Animated.Value(0)).current;
 
@@ -77,18 +69,6 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
     ]).start();
   }, [isFocused, scaleAnim, bgAnim]);
 
-  const handleFocus = () => {
-    setIsFocused(true);
-    onFocus();
-  };
-
-  // Reset focus state when sidebar loses focus
-  useEffect(() => {
-    if (!isSidebarFocused) {
-      setIsFocused(false);
-    }
-  }, [isSidebarFocused]);
-
   const backgroundColor = bgAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['transparent', currentTheme.colors.primary],
@@ -97,17 +77,15 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   const iconColor = isFocused ? '#000000' : isActive ? currentTheme.colors.primary : 'rgba(255, 255, 255, 0.8)';
   const textColor = isFocused ? '#000000' : isActive ? currentTheme.colors.primary : 'rgba(255, 255, 255, 0.9)';
 
-  // TV-specific props - give preferred focus to active item
   const tvProps = {
-    hasTVPreferredFocus: isSidebarFocused && index === activeIndex,
+    hasTVPreferredFocus,
     isTVSelectable: true,
   } as any;
 
   return (
     <TouchableOpacity
       onPress={onPress}
-      onFocus={handleFocus}
-      // NO onBlur - this is key! onBlur causes flickering between items
+      onFocus={onFocus}
       activeOpacity={1}
       style={styles.itemTouchable}
       {...tvProps}
@@ -123,7 +101,6 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
           },
         ]}
       >
-        {/* Active indicator line */}
         {isActive && !isFocused && (
           <View style={[styles.activeIndicator, { backgroundColor: currentTheme.colors.primary }]} />
         )}
@@ -155,29 +132,28 @@ const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation })
   const { currentTheme } = useTheme();
   const [isExpanded, setIsExpanded] = useState(true);
   const [hasFocus, setHasFocus] = useState(true);
+  const [focusedIndex, setFocusedIndex] = useState(state.index); // Track which item is focused
   const widthAnim = useRef(new Animated.Value(EXPANDED_WIDTH)).current;
   const scrimAnim = useRef(new Animated.Value(1)).current;
   const hasFocusRef = useRef(true);
 
-  // Keep ref in sync with state
   useEffect(() => {
     hasFocusRef.current = hasFocus;
   }, [hasFocus]);
 
-  // Listen for TV remote events to detect when user navigates away from sidebar
+  // Listen for RIGHT press to collapse sidebar
   const tvEventHandler = useCallback((evt: any) => {
     const eventType = evt?.eventType;
 
-    // When user presses RIGHT and sidebar has focus, collapse it
     if (eventType === 'right' && hasFocusRef.current) {
       setHasFocus(false);
       setIsExpanded(false);
+      setFocusedIndex(-1); // Clear focused index when leaving
     }
   }, []);
 
   useTVEventHandler(tvEventHandler);
 
-  // Animate width and scrim
   useEffect(() => {
     Animated.parallel([
       Animated.spring(widthAnim, {
@@ -194,10 +170,11 @@ const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation })
     ]).start();
   }, [isExpanded, widthAnim, scrimAnim]);
 
-  // When any sidebar item gets focus, expand sidebar
-  const handleItemFocus = useCallback(() => {
+  // Called when any item gets focus - expand sidebar and track which item
+  const handleItemFocus = useCallback((index: number) => {
     setHasFocus(true);
     setIsExpanded(true);
+    setFocusedIndex(index);
   }, []);
 
   const getIconName = (routeName: string): string => {
@@ -218,7 +195,6 @@ const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation })
 
   return (
     <>
-      {/* Scrim overlay behind expanded sidebar */}
       <Animated.View
         style={[
           styles.scrim,
@@ -227,7 +203,6 @@ const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation })
         pointerEvents={isExpanded ? 'auto' : 'none'}
       />
 
-      {/* Sidebar */}
       <Animated.View
         style={[
           styles.container,
@@ -238,17 +213,14 @@ const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation })
           }
         ]}
       >
-        {/* Logo */}
         <View style={styles.logoContainer}>
           <Text style={[styles.logoText, { color: currentTheme.colors.primary }]}>
             {isExpanded ? 'NUVIO' : 'N'}
           </Text>
         </View>
 
-        {/* Divider */}
         <View style={[styles.divider, { width: isExpanded ? '80%' : '60%' }]} />
 
-        {/* Navigation Items */}
         <View style={styles.navItems}>
           {state.routes.map((route: any, index: number) => {
             const { options } = descriptors[route.key];
@@ -260,6 +232,7 @@ const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation })
                   : route.name;
 
             const isActive = state.index === index;
+            const isFocused = hasFocus && focusedIndex === index;
 
             const onPress = () => {
               const event = navigation.emit({
@@ -279,18 +252,16 @@ const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation })
                 label={typeof label === 'string' ? label : route.name}
                 iconName={getIconName(route.name)}
                 isActive={isActive}
+                isFocused={isFocused}
                 isExpanded={isExpanded}
-                isSidebarFocused={hasFocus}
                 onPress={onPress}
-                onFocus={handleItemFocus}
-                index={index}
-                activeIndex={state.index}
+                onFocus={() => handleItemFocus(index)}
+                hasTVPreferredFocus={hasFocus && index === state.index}
               />
             );
           })}
         </View>
 
-        {/* Bottom info */}
         {isExpanded && (
           <View style={styles.bottomSection}>
             <Text style={styles.versionText}>v1.2.11</Text>
