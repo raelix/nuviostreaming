@@ -9,6 +9,7 @@ import ContentItem from './ContentItem';
 import Animated, { FadeIn, Layout } from 'react-native-reanimated';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { isTV as platformIsTV, TV_FOCUS_BORDER_COLOR } from '../../utils/tvUtils';
+import { useTVNavigation } from '../../hooks/useTVNavigation';
 
 interface CatalogSectionProps {
   catalog: CatalogContent;
@@ -79,18 +80,23 @@ const CatalogSection = ({ catalog }: CatalogSectionProps) => {
   const { currentTheme } = useTheme();
   const [viewAllFocused, setViewAllFocused] = useState(false);
 
+  // TV Navigation - get sidebar ref for nextFocusLeft on first item
+  const { sidebarNodeHandle } = useTVNavigation();
+
   const handleContentPress = useCallback((id: string, type: string) => {
     navigation.navigate('Metadata', { id, type, addonId: catalog.addon });
   }, [navigation, catalog.addon]);
 
-  const renderContentItem = useCallback(({ item }: { item: StreamingContent, index: number }) => {
+  const renderContentItem = useCallback(({ item, index }: { item: StreamingContent, index: number }) => {
     return (
       <ContentItem
         item={item}
         onPress={handleContentPress}
+        isFirstItem={isTV && index === 0}
+        sidebarNodeHandle={sidebarNodeHandle}
       />
     );
-  }, [handleContentPress]);
+  }, [handleContentPress, sidebarNodeHandle]);
 
   // Memoize the ItemSeparatorComponent to prevent re-creation (responsive spacing)
   const separatorWidth = isTV ? 12 : isLargeTablet ? 10 : isTablet ? 8 : 8;
@@ -152,7 +158,10 @@ const CatalogSection = ({ catalog }: CatalogSectionProps) => {
             },
             isTV && viewAllFocused && styles.tvButtonFocused,
           ]}
-          {...(isTV ? { isTVSelectable: true } as any : {})}
+          {...(isTV ? {
+            isTVSelectable: true,
+            ...(sidebarNodeHandle ? { nextFocusLeft: sidebarNodeHandle } : {}),
+          } as any : {})}
         >
           <Text style={[
             styles.viewAllText,

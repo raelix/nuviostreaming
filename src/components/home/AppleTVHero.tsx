@@ -46,6 +46,7 @@ import { useTraktContext } from '../../contexts/TraktContext';
 import { BlurView as ExpoBlurView } from 'expo-blur';
 import { useWatchProgress } from '../../hooks/useWatchProgress';
 import { streamCacheService } from '../../services/streamCacheService';
+import { useTVNavigation } from '../../hooks/useTVNavigation';
 
 interface AppleTVHeroProps {
   featuredContent: StreamingContent | null;
@@ -165,6 +166,9 @@ const AppleTVHero: React.FC<AppleTVHeroProps> = ({
   // TV Focus state for buttons
   const [playButtonFocused, setPlayButtonFocused] = useState(false);
   const [saveButtonFocused, setSaveButtonFocused] = useState(false);
+
+  // TV Navigation - get sidebar ref for nextFocusLeft
+  const { sidebarNodeHandle } = useTVNavigation();
 
   // Create internal scrollY if not provided externally
   const internalScrollY = useSharedValue(0);
@@ -1294,7 +1298,11 @@ const AppleTVHero: React.FC<AppleTVHeroProps> = ({
               activeOpacity={0.85}
               onFocus={() => setPlayButtonFocused(true)}
               onBlur={() => setPlayButtonFocused(false)}
-              {...(isTV ? { hasTVPreferredFocus: true, isTVSelectable: true } as any : {})}
+              {...(isTV ? {
+                hasTVPreferredFocus: false, // Let sidebar have initial focus
+                isTVSelectable: true,
+                ...(sidebarNodeHandle ? { nextFocusLeft: sidebarNodeHandle } : {}),
+              } as any : {})}
             >
               <MaterialIcons
                 name={playButtonText === 'Resume' ? "replay" : "play-arrow"}
@@ -1315,7 +1323,10 @@ const AppleTVHero: React.FC<AppleTVHeroProps> = ({
               activeOpacity={0.85}
               onFocus={() => setSaveButtonFocused(true)}
               onBlur={() => setSaveButtonFocused(false)}
-              {...(isTV ? { isTVSelectable: true } as any : {})}
+              {...(isTV ? {
+                isTVSelectable: true,
+                ...(sidebarNodeHandle ? { nextFocusLeft: sidebarNodeHandle } : {}),
+              } as any : {})}
             >
               <MaterialIcons
                 name={inLibrary ? "bookmark" : "bookmark-outline"}

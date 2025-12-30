@@ -1,16 +1,16 @@
 /**
  * TVSidebar Component
- * Proper TV navigation using TVFocusGuideView with autoFocus
+ * TV navigation sidebar with proper focus management.
+ *
+ * Focus flow:
+ * - Sidebar items are focusable with D-pad navigation
+ * - Pressing Right from sidebar navigates to content
+ * - Pressing Left from content navigates back to sidebar
+ * - Container-level focus tracking expands/collapses sidebar
  *
  * Based on:
  * - https://dev.to/amazonappdev/tv-navigation-in-react-native-a-guide-to-using-tvfocusguideview-302i
- * - https://dev.to/amazonappdev/5-ways-of-managing-focus-in-react-native-3kfd
- *
- * Key patterns:
- * - TVFocusGuideView with autoFocus remembers last focused item
- * - Individual item onFocus/onBlur for visual state
- * - hasTVPreferredFocus for initial focus
- * - No custom useTVEventHandler - let native focus engine work
+ * - https://github.com/react-native-tvos/react-native-tvos
  */
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import {
@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useTVFocus } from '../../contexts/TVFocusContext';
 import { TV_SAFE_AREA } from '../../utils/tvUtils';
 
 // Sidebar dimensions
@@ -38,6 +39,7 @@ interface TVSidebarProps {
 
 const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation }) => {
   const { currentTheme } = useTheme();
+  const { registerSidebarItem, unregisterSidebarItem, setSidebarHasFocus } = useTVFocus();
   const [isExpanded, setIsExpanded] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const widthAnim = useRef(new Animated.Value(COLLAPSED_WIDTH)).current;
@@ -53,24 +55,44 @@ const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation })
     }).start();
   }, [isExpanded, widthAnim]);
 
+  // Register sidebar items with focus context
+  useEffect(() => {
+    itemRefs.current.forEach((ref, index) => {
+      if (ref) {
+        registerSidebarItem(index, ref);
+      }
+    });
+
+    return () => {
+      itemRefs.current.forEach((_, index) => {
+        unregisterSidebarItem(index);
+      });
+    };
+  }, [registerSidebarItem, unregisterSidebarItem, state.routes.length]);
+
+  // Handle when any sidebar item receives focus
   const handleItemFocus = useCallback((index: number) => {
     setFocusedIndex(index);
     setIsExpanded(true);
-  }, []);
+    setSidebarHasFocus(true);
+  }, [setSidebarHasFocus]);
 
+  // Handle when a sidebar item loses focus
+  // We use a delay to check if focus moved to another sidebar item
   const handleItemBlur = useCallback((index: number) => {
-    // Only collapse if this was the focused item losing focus
     // Small delay to check if focus moved to another sidebar item
     setTimeout(() => {
       setFocusedIndex(prev => {
         if (prev === index) {
+          // Focus left this item and didn't move to another sidebar item
           setIsExpanded(false);
+          setSidebarHasFocus(false);
           return null;
         }
         return prev;
       });
-    }, 50);
-  }, []);
+    }, 100);
+  }, [setSidebarHasFocus]);
 
   const getIconName = (routeName: string): string => {
     switch (routeName) {
@@ -86,6 +108,9 @@ const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation })
   return (
     <TVFocusGuideView
       autoFocus
+      trapFocusUp
+      trapFocusDown
+      trapFocusLeft
       style={[
         styles.focusGuide,
         { width: isExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH }
@@ -143,26 +168,24 @@ const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation })
               }
             };
 
-            // TV props
-            const tvProps: any = {
-              isTVSelectable: true,
-            };
-
-            // Give preferred focus to first item on initial render
-            if (index === 0) {
-              tvProps.hasTVPreferredFocus = true;
-            }
-
             return (
               <TouchableOpacity
                 key={route.key}
-                ref={ref => { itemRefs.current[index] = ref; }}
+                ref={ref => {
+                  itemRefs.current[index] = ref;
+                  // Re-register when ref changes
+                  if (ref) {
+                    registerSidebarItem(index, ref);
+                  }
+                }}
                 onPress={onPress}
                 onFocus={() => handleItemFocus(index)}
                 onBlur={() => handleItemBlur(index)}
                 activeOpacity={1}
                 style={styles.itemTouchable}
-                {...tvProps}
+                // TV-specific props
+                hasTVPreferredFocus={index === 0}
+                isTVSelectable={true}
               >
                 <View
                   style={[

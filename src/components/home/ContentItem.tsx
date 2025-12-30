@@ -20,6 +20,9 @@ interface ContentItemProps {
   onPress: (id: string, type: string) => void;
   shouldLoadImage?: boolean;
   deferMs?: number;
+  // TV props for sidebar navigation
+  isFirstItem?: boolean;
+  sidebarNodeHandle?: number | null;
 }
 
 const { width } = Dimensions.get('window');
@@ -82,7 +85,14 @@ const calculatePosterLayout = (screenWidth: number) => {
 const posterLayout = calculatePosterLayout(width);
 const POSTER_WIDTH = posterLayout.posterWidth;
 
-const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, deferMs = 0 }: ContentItemProps) => {
+const ContentItem = ({
+  item,
+  onPress,
+  shouldLoadImage: shouldLoadImageProp,
+  deferMs = 0,
+  isFirstItem = false,
+  sidebarNodeHandle,
+}: ContentItemProps) => {
   // Track inLibrary status locally to force re-render
   const [inLibrary, setInLibrary] = useState(!!item.inLibrary);
 
@@ -358,6 +368,8 @@ const ContentItem = ({ item, onPress, shouldLoadImage: shouldLoadImageProp, defe
               pressMagnification: 1.0,
               pressDuration: 0.1,
             },
+            // First item in each row navigates left to sidebar
+            ...(isFirstItem && sidebarNodeHandle ? { nextFocusLeft: sidebarNodeHandle } : {}),
           } as any : {})}
         >
           <View ref={itemRef} style={[styles.contentItemContainer, { borderRadius }]}>

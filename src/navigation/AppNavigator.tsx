@@ -20,6 +20,7 @@ import { PostHogProvider } from 'posthog-react-native';
 // TV Support imports
 import { isTV, isAndroidTV, TV_DIMENSIONS, TV_SAFE_AREA } from '../utils/tvUtils';
 import TVSidebar from '../components/tv/TVSidebar';
+import { TVFocusProvider } from '../contexts/TVFocusContext';
 
 // Optional iOS Glass effect (expo-glass-effect) with safe fallback
 let GlassViewComp: any = null;
@@ -950,7 +951,8 @@ const MainTabs = () => {
     );
   }
 
-  return (
+  // Wrap content with TVFocusProvider on TV platforms
+  const content = (
     <View style={{ flex: 1, backgroundColor: currentTheme.colors.darkBackground }}>
       {/* Common StatusBar for all tabs */}
       <StatusBar
@@ -1067,6 +1069,13 @@ const MainTabs = () => {
       </Tab.Navigator>
     </View>
   );
+
+  // Wrap with TVFocusProvider on TV platforms for proper sidebar focus management
+  return isTV ? (
+    <TVFocusProvider>
+      {content}
+    </TVFocusProvider>
+  ) : content;
 };
 
 // Create custom fade animation interpolator for MetadataScreen
