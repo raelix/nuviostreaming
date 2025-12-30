@@ -58,10 +58,11 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   const bgAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // Both animations must use same useNativeDriver value when on same Animated.View
     Animated.parallel([
       Animated.spring(scaleAnim, {
         toValue: isFocused ? 1.05 : 1,
-        useNativeDriver: true,
+        useNativeDriver: false, // Must match bgAnim
         friction: 8,
         tension: 100,
       }),
