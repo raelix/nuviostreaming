@@ -8,6 +8,7 @@ import {
   StatusBar,
   Platform,
 } from 'react-native';
+import { isTV } from '../utils/tvUtils';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -281,7 +282,11 @@ const OnboardingScreen = () => {
           entering={FadeIn.delay(300).duration(600)}
           style={styles.header}
         >
-          <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
+          <TouchableOpacity
+            onPress={handleSkip}
+            style={styles.skipButton}
+            {...(isTV ? { isTVSelectable: true } as any : {})}
+          >
             <Text style={styles.skipText}>Skip</Text>
           </TouchableOpacity>
 
@@ -327,6 +332,7 @@ const OnboardingScreen = () => {
             onPressIn={handlePressIn}
             onPressOut={handlePressOut}
             activeOpacity={1}
+            {...(isTV ? { hasTVPreferredFocus: true, isTVSelectable: true } as any : {})}
           >
             <Animated.View style={[styles.button, buttonStyle]}>
               <Text style={styles.buttonText}>

@@ -1,22 +1,23 @@
 /**
  * TVSidebar Component
- * A sidebar navigation component for TV interfaces.
- * Replaces bottom tab navigation with a vertical sidebar for D-pad navigation.
+ * Collapsible sidebar for TV - shows icons when collapsed, expands on focus.
  */
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Animated,
   TouchableOpacity,
-  Dimensions,
 } from 'react-native';
-import { MaterialCommunityIcons, Feather, Ionicons } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
-import { TV_DIMENSIONS, TV_FOCUS_BORDER_COLOR, TV_SAFE_AREA } from '../../utils/tvUtils';
+import { TV_SAFE_AREA } from '../../utils/tvUtils';
+
+// Sidebar dimensions
+const COLLAPSED_WIDTH = 72;
+const EXPANDED_WIDTH = 240;
 
 interface TVSidebarProps {
   state: any;
@@ -27,11 +28,12 @@ interface TVSidebarProps {
 interface SidebarItemProps {
   label: string;
   iconName: string;
-  iconLibrary: 'material' | 'feather' | 'ionicons';
-  isFocused: boolean;
+  iconLibrary: 'feather' | 'ionicons';
   isActive: boolean;
+  isExpanded: boolean;
   onPress: () => void;
   onFocus: () => void;
+  onBlur: () => void;
   hasTVPreferredFocus?: boolean;
 }
 
@@ -39,48 +41,49 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   label,
   iconName,
   iconLibrary,
-  isFocused,
   isActive,
+  isExpanded,
   onPress,
   onFocus,
+  onBlur,
   hasTVPreferredFocus,
 }) => {
   const { currentTheme } = useTheme();
+  const [isFocused, setIsFocused] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const opacityAnim = useRef(new Animated.Value(isActive ? 1 : 0.7)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: isFocused ? 1.05 : 1,
-        useNativeDriver: true,
-        friction: 8,
-        tension: 100,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: isFocused || isActive ? 1 : 0.7,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [isFocused, isActive]);
+    Animated.spring(scaleAnim, {
+      toValue: isFocused ? 1.08 : 1,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 100,
+    }).start();
+  }, [isFocused, scaleAnim]);
 
-  const iconColor = isActive || isFocused ? currentTheme.colors.primary : currentTheme.colors.white;
-  const iconSize = 28;
+  const iconColor = isActive ? currentTheme.colors.primary :
+                    isFocused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)';
+  const iconSize = 24;
 
   const renderIcon = () => {
     const props = { name: iconName as any, size: iconSize, color: iconColor };
-    switch (iconLibrary) {
-      case 'feather':
-        return <Feather {...props} />;
-      case 'ionicons':
-        return <Ionicons {...props} />;
-      default:
-        return <MaterialCommunityIcons {...props} />;
+    if (iconLibrary === 'ionicons') {
+      return <Ionicons {...props} />;
     }
+    return <Feather {...props} />;
   };
 
-  // TV-specific props (only available in react-native-tvos)
+  const handleFocus = () => {
+    setIsFocused(true);
+    onFocus();
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    onBlur();
+  };
+
+  // TV-specific props
   const tvProps = {
     hasTVPreferredFocus,
     isTVSelectable: true,
@@ -89,7 +92,8 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   return (
     <TouchableOpacity
       onPress={onPress}
-      onFocus={onFocus}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
       activeOpacity={1}
       style={styles.itemTouchable}
       {...tvProps}
@@ -99,34 +103,33 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
           styles.item,
           {
             transform: [{ scale: scaleAnim }],
-            opacity: opacityAnim,
             backgroundColor: isFocused
-              ? 'rgba(255, 255, 255, 0.15)'
+              ? currentTheme.colors.primary
               : isActive
-                ? 'rgba(255, 255, 255, 0.08)'
+                ? 'rgba(255, 255, 255, 0.1)'
                 : 'transparent',
-            borderLeftWidth: isActive ? 3 : 0,
-            borderLeftColor: currentTheme.colors.primary,
+            justifyContent: isExpanded ? 'flex-start' : 'center',
+            paddingHorizontal: isExpanded ? 16 : 0,
           },
         ]}
       >
-        {isFocused && (
-          <View style={[styles.focusIndicator, { backgroundColor: currentTheme.colors.primary }]} />
-        )}
         <View style={styles.iconContainer}>
           {renderIcon()}
         </View>
-        <Text
-          style={[
-            styles.label,
-            {
-              color: iconColor,
-              fontWeight: isActive || isFocused ? '700' : '500',
-            },
-          ]}
-        >
-          {label}
-        </Text>
+        {isExpanded && (
+          <Text
+            style={[
+              styles.label,
+              {
+                color: isFocused ? '#000' : iconColor,
+                fontWeight: isActive || isFocused ? '600' : '400',
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {label}
+          </Text>
+        )}
       </Animated.View>
     </TouchableOpacity>
   );
@@ -134,15 +137,48 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
 
 const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation }) => {
   const { currentTheme } = useTheme();
-  const insets = useSafeAreaInsets();
-  const [focusedIndex, setFocusedIndex] = useState(state.index);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const widthAnim = useRef(new Animated.Value(COLLAPSED_WIDTH)).current;
+  const collapseTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const getIconInfo = (routeName: string): { name: string; library: 'material' | 'feather' | 'ionicons' } => {
+  useEffect(() => {
+    Animated.spring(widthAnim, {
+      toValue: isExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH,
+      useNativeDriver: false,
+      friction: 12,
+      tension: 100,
+    }).start();
+  }, [isExpanded, widthAnim]);
+
+  const handleItemFocus = useCallback(() => {
+    if (collapseTimer.current) {
+      clearTimeout(collapseTimer.current);
+      collapseTimer.current = null;
+    }
+    setIsExpanded(true);
+  }, []);
+
+  const handleItemBlur = useCallback(() => {
+    // Delay collapse to allow moving between items
+    collapseTimer.current = setTimeout(() => {
+      setIsExpanded(false);
+    }, 200);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (collapseTimer.current) {
+        clearTimeout(collapseTimer.current);
+      }
+    };
+  }, []);
+
+  const getIconInfo = (routeName: string): { name: string; library: 'feather' | 'ionicons' } => {
     switch (routeName) {
       case 'Home':
         return { name: 'home', library: 'feather' };
       case 'Library':
-        return { name: 'library', library: 'ionicons' };
+        return { name: 'heart', library: 'feather' };
       case 'Search':
         return { name: 'search', library: 'feather' };
       case 'Downloads':
@@ -155,22 +191,31 @@ const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation })
   };
 
   return (
-    <View style={[styles.container, { paddingTop: TV_SAFE_AREA.top + 20 }]}>
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          width: widthAnim,
+          paddingTop: TV_SAFE_AREA.top + 16,
+        }
+      ]}
+    >
+      {/* Background */}
       <LinearGradient
-        colors={['rgba(0, 0, 0, 0.95)', 'rgba(0, 0, 0, 0.8)', 'rgba(0, 0, 0, 0)']}
+        colors={['rgba(15, 15, 15, 0.98)', 'rgba(15, 15, 15, 0.9)', 'rgba(15, 15, 15, 0)']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={styles.gradient}
       />
 
-      {/* App Logo/Title */}
+      {/* Logo */}
       <View style={styles.logoContainer}>
         <Text style={[styles.logoText, { color: currentTheme.colors.primary }]}>
-          NUVIO
+          {isExpanded ? 'NUVIO' : 'N'}
         </Text>
       </View>
 
-      {/* Navigation Items */}
+      {/* Nav Items */}
       <View style={styles.navItems}>
         {state.routes.map((route: any, index: number) => {
           const { options } = descriptors[route.key];
@@ -182,7 +227,6 @@ const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation })
                 : route.name;
 
           const isActive = state.index === index;
-          const isFocused = focusedIndex === index;
           const iconInfo = getIconInfo(route.name);
 
           const onPress = () => {
@@ -203,92 +247,71 @@ const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation })
               label={typeof label === 'string' ? label : route.name}
               iconName={iconInfo.name}
               iconLibrary={iconInfo.library}
-              isFocused={isFocused}
               isActive={isActive}
+              isExpanded={isExpanded}
               onPress={onPress}
-              onFocus={() => setFocusedIndex(index)}
+              onFocus={handleItemFocus}
+              onBlur={handleItemBlur}
               hasTVPreferredFocus={index === 0 && state.index === 0}
             />
           );
         })}
       </View>
-
-      {/* Bottom section for version/info */}
-      <View style={styles.bottomSection}>
-        <Text style={styles.versionText}>v1.2.11</Text>
-      </View>
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    width: TV_DIMENSIONS.SIDEBAR_WIDTH,
     height: '100%',
     position: 'absolute',
     left: 0,
     top: 0,
     bottom: 0,
     zIndex: 100,
-    paddingHorizontal: 16,
-    paddingBottom: TV_SAFE_AREA.bottom + 20,
+    paddingBottom: TV_SAFE_AREA.bottom + 16,
   },
   gradient: {
     position: 'absolute',
     left: 0,
     top: 0,
     bottom: 0,
-    width: TV_DIMENSIONS.SIDEBAR_WIDTH + 50,
+    width: EXPANDED_WIDTH + 60,
   },
   logoContainer: {
-    paddingVertical: 24,
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   logoText: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '800',
-    letterSpacing: 4,
+    letterSpacing: 2,
   },
   navItems: {
     flex: 1,
+    paddingHorizontal: 8,
   },
   itemTouchable: {
-    marginVertical: 4,
+    marginVertical: 2,
   },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
+    height: 48,
+    borderRadius: 10,
     overflow: 'hidden',
   },
-  focusIndicator: {
-    position: 'absolute',
-    left: 0,
-    top: '20%',
-    bottom: '20%',
-    width: 4,
-    borderRadius: 2,
-  },
   iconContainer: {
-    width: 40,
+    width: 48,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   label: {
-    fontSize: 18,
-    marginLeft: 16,
-    letterSpacing: 0.5,
-  },
-  bottomSection: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    opacity: 0.5,
-  },
-  versionText: {
-    color: '#888',
-    fontSize: 14,
+    fontSize: 15,
+    marginLeft: 4,
+    letterSpacing: 0.2,
   },
 });
 
