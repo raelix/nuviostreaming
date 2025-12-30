@@ -60,8 +60,8 @@ const { width, height } = Dimensions.get('window');
 // Get status bar height
 const STATUS_BAR_HEIGHT = StatusBar.currentHeight || 0;
 
-// Calculate hero height - 85% of screen height
-const HERO_HEIGHT = height * 0.85;
+// Calculate hero height - TV uses larger percentage for 10-foot viewing
+const HERO_HEIGHT = isTV ? height * 0.75 : height * 0.85;
 
 // Animated Pagination Dot Component
 const PaginationDot: React.FC<{
@@ -994,9 +994,12 @@ const AppleTVHero: React.FC<AppleTVHeroProps> = ({
     setCurrentIndex(index);
   }, []);
 
+  // On TV, don't use negative margin - AppNavigator already handles padding
+  const heroMarginTop = isTV ? 0 : -insets.top;
+
   if (loading) {
     return (
-      <View style={[styles.container, { height: HERO_HEIGHT, marginTop: -insets.top }]}>
+      <View style={[styles.container, { height: HERO_HEIGHT, marginTop: heroMarginTop }]}>
         <View style={styles.skeletonContainer}>
           <LinearGradient
             colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.05)']}
@@ -1011,7 +1014,7 @@ const AppleTVHero: React.FC<AppleTVHeroProps> = ({
 
   if (!currentItem || items.length === 0) {
     return (
-      <View style={[styles.container, { height: HERO_HEIGHT, marginTop: -insets.top }]}>
+      <View style={[styles.container, { height: HERO_HEIGHT, marginTop: heroMarginTop }]}>
         <View style={styles.noContentContainer}>
           <MaterialIcons name="theaters" size={48} color="rgba(255,255,255,0.5)" />
           <Text style={styles.noContentText}>No featured content available</Text>
@@ -1033,7 +1036,7 @@ const AppleTVHero: React.FC<AppleTVHeroProps> = ({
     <GestureDetector gesture={panGesture}>
       <Animated.View
         entering={initialLoadComplete ? undefined : FadeIn.duration(600).delay(150)}
-        style={[styles.container, heroContainerStyle, { height: HERO_HEIGHT, marginTop: -insets.top }]}
+        style={[styles.container, heroContainerStyle, { height: HERO_HEIGHT, marginTop: heroMarginTop }]}
       >
         {/* Background Images with Crossfade */}
         <View style={styles.backgroundContainer}>

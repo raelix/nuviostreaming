@@ -50,8 +50,8 @@ export const TV_REMOTE_KEYS = {
 
 // TV-specific dimensions
 export const TV_DIMENSIONS = {
-  // Sidebar width for TV navigation (collapsed state)
-  SIDEBAR_WIDTH: isTV ? 72 : 0,
+  // Sidebar width for TV navigation (collapsed state - overlay mode)
+  SIDEBAR_WIDTH: isTV ? 80 : 0,
 
   // Content padding for safe area
   CONTENT_PADDING: isTV ? 48 : 16,

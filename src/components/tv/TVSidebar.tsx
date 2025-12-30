@@ -1,6 +1,8 @@
 /**
  * TVSidebar Component
- * Collapsible sidebar for TV - shows icons when collapsed, expands on focus.
+ * Modal Navigation Drawer pattern for TV:
+ * - Expanded: Overlays content with scrim when focused
+ * - Collapsed: Icon-only rail in background when focus is on content
  */
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
@@ -9,15 +11,17 @@ import {
   StyleSheet,
   Animated,
   TouchableOpacity,
+  Dimensions,
 } from 'react-native';
-import { Feather, Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { TV_SAFE_AREA } from '../../utils/tvUtils';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 // Sidebar dimensions
-const COLLAPSED_WIDTH = 72;
-const EXPANDED_WIDTH = 240;
+const COLLAPSED_WIDTH = 80;
+const EXPANDED_WIDTH = 280;
 
 interface TVSidebarProps {
   state: any;
@@ -28,50 +32,46 @@ interface TVSidebarProps {
 interface SidebarItemProps {
   label: string;
   iconName: string;
-  iconLibrary: 'feather' | 'ionicons';
   isActive: boolean;
   isExpanded: boolean;
   onPress: () => void;
   onFocus: () => void;
   onBlur: () => void;
-  hasTVPreferredFocus?: boolean;
+  index: number;
+  activeIndex: number;
 }
 
 const SidebarItem: React.FC<SidebarItemProps> = ({
   label,
   iconName,
-  iconLibrary,
   isActive,
   isExpanded,
   onPress,
   onFocus,
   onBlur,
-  hasTVPreferredFocus,
+  index,
+  activeIndex,
 }) => {
   const { currentTheme } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const bgAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.spring(scaleAnim, {
-      toValue: isFocused ? 1.08 : 1,
-      useNativeDriver: true,
-      friction: 8,
-      tension: 100,
-    }).start();
-  }, [isFocused, scaleAnim]);
-
-  const iconColor = isActive ? currentTheme.colors.primary :
-                    isFocused ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)';
-  const iconSize = 24;
-
-  const renderIcon = () => {
-    const props = { name: iconName as any, size: iconSize, color: iconColor };
-    if (iconLibrary === 'ionicons') {
-      return <Ionicons {...props} />;
-    }
-    return <Feather {...props} />;
-  };
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: isFocused ? 1.05 : 1,
+        useNativeDriver: true,
+        friction: 8,
+        tension: 100,
+      }),
+      Animated.timing(bgAnim, {
+        toValue: isFocused ? 1 : 0,
+        duration: 150,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [isFocused, scaleAnim, bgAnim]);
 
   const handleFocus = () => {
     setIsFocused(true);
@@ -83,9 +83,17 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
     onBlur();
   };
 
+  const backgroundColor = bgAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['transparent', currentTheme.colors.primary],
+  });
+
+  const iconColor = isFocused ? '#000000' : isActive ? currentTheme.colors.primary : 'rgba(255, 255, 255, 0.8)';
+  const textColor = isFocused ? '#000000' : isActive ? currentTheme.colors.primary : 'rgba(255, 255, 255, 0.9)';
+
   // TV-specific props
   const tvProps = {
-    hasTVPreferredFocus,
+    hasTVPreferredFocus: index === activeIndex,
     isTVSelectable: true,
   } as any;
 
@@ -103,25 +111,27 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
           styles.item,
           {
             transform: [{ scale: scaleAnim }],
-            backgroundColor: isFocused
-              ? currentTheme.colors.primary
-              : isActive
-                ? 'rgba(255, 255, 255, 0.1)'
-                : 'transparent',
+            backgroundColor,
+            paddingLeft: isExpanded ? 20 : 0,
             justifyContent: isExpanded ? 'flex-start' : 'center',
-            paddingHorizontal: isExpanded ? 16 : 0,
           },
         ]}
       >
+        {/* Active indicator line */}
+        {isActive && !isFocused && (
+          <View style={[styles.activeIndicator, { backgroundColor: currentTheme.colors.primary }]} />
+        )}
+
         <View style={styles.iconContainer}>
-          {renderIcon()}
+          <Feather name={iconName as any} size={22} color={iconColor} />
         </View>
+
         {isExpanded && (
           <Text
             style={[
               styles.label,
               {
-                color: isFocused ? '#000' : iconColor,
+                color: textColor,
                 fontWeight: isActive || isFocused ? '600' : '400',
               },
             ]}
@@ -137,32 +147,43 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
 
 const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation }) => {
   const { currentTheme } = useTheme();
-  const [isExpanded, setIsExpanded] = useState(false);
-  const widthAnim = useRef(new Animated.Value(COLLAPSED_WIDTH)).current;
-  const collapseTimer = useRef<NodeJS.Timeout | null>(null);
+  const [isExpanded, setIsExpanded] = useState(true); // Start expanded
+  const [hasSidebarFocus, setHasSidebarFocus] = useState(true); // Start with focus
+  const widthAnim = useRef(new Animated.Value(EXPANDED_WIDTH)).current;
+  const scrimAnim = useRef(new Animated.Value(1)).current;
+  const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    Animated.spring(widthAnim, {
-      toValue: isExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH,
-      useNativeDriver: false,
-      friction: 12,
-      tension: 100,
-    }).start();
-  }, [isExpanded, widthAnim]);
+    Animated.parallel([
+      Animated.spring(widthAnim, {
+        toValue: isExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH,
+        useNativeDriver: false,
+        friction: 12,
+        tension: 80,
+      }),
+      Animated.timing(scrimAnim, {
+        toValue: isExpanded ? 1 : 0,
+        duration: 200,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [isExpanded, widthAnim, scrimAnim]);
 
   const handleItemFocus = useCallback(() => {
     if (collapseTimer.current) {
       clearTimeout(collapseTimer.current);
       collapseTimer.current = null;
     }
+    setHasSidebarFocus(true);
     setIsExpanded(true);
   }, []);
 
   const handleItemBlur = useCallback(() => {
-    // Delay collapse to allow moving between items
+    // Delay to allow focus to move between sidebar items
     collapseTimer.current = setTimeout(() => {
+      setHasSidebarFocus(false);
       setIsExpanded(false);
-    }, 200);
+    }, 150);
   }, []);
 
   useEffect(() => {
@@ -173,95 +194,118 @@ const TVSidebar: React.FC<TVSidebarProps> = ({ state, descriptors, navigation })
     };
   }, []);
 
-  const getIconInfo = (routeName: string): { name: string; library: 'feather' | 'ionicons' } => {
+  const getIconName = (routeName: string): string => {
     switch (routeName) {
-      case 'Home':
-        return { name: 'home', library: 'feather' };
-      case 'Library':
-        return { name: 'heart', library: 'feather' };
-      case 'Search':
-        return { name: 'search', library: 'feather' };
-      case 'Downloads':
-        return { name: 'download', library: 'feather' };
-      case 'Settings':
-        return { name: 'settings', library: 'feather' };
-      default:
-        return { name: 'circle', library: 'feather' };
+      case 'Home': return 'home';
+      case 'Library': return 'heart';
+      case 'Search': return 'search';
+      case 'Downloads': return 'download';
+      case 'Settings': return 'settings';
+      default: return 'circle';
     }
   };
 
+  const scrimOpacity = scrimAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.7],
+  });
+
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        {
-          width: widthAnim,
-          paddingTop: TV_SAFE_AREA.top + 16,
-        }
-      ]}
-    >
-      {/* Background */}
-      <LinearGradient
-        colors={['rgba(15, 15, 15, 0.98)', 'rgba(15, 15, 15, 0.9)', 'rgba(15, 15, 15, 0)']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.gradient}
+    <>
+      {/* Scrim overlay behind expanded sidebar */}
+      <Animated.View
+        style={[
+          styles.scrim,
+          { opacity: scrimOpacity },
+        ]}
+        pointerEvents={isExpanded ? 'auto' : 'none'}
       />
 
-      {/* Logo */}
-      <View style={styles.logoContainer}>
-        <Text style={[styles.logoText, { color: currentTheme.colors.primary }]}>
-          {isExpanded ? 'NUVIO' : 'N'}
-        </Text>
-      </View>
+      {/* Sidebar */}
+      <Animated.View
+        style={[
+          styles.container,
+          {
+            width: widthAnim,
+            paddingTop: TV_SAFE_AREA.top + 24,
+            backgroundColor: isExpanded ? 'rgba(10, 10, 10, 0.98)' : 'rgba(15, 15, 15, 0.95)',
+          }
+        ]}
+      >
+        {/* Logo */}
+        <View style={styles.logoContainer}>
+          <Text style={[styles.logoText, { color: currentTheme.colors.primary }]}>
+            {isExpanded ? 'NUVIO' : 'N'}
+          </Text>
+        </View>
 
-      {/* Nav Items */}
-      <View style={styles.navItems}>
-        {state.routes.map((route: any, index: number) => {
-          const { options } = descriptors[route.key];
-          const label =
-            options.tabBarLabel !== undefined
-              ? options.tabBarLabel
-              : options.title !== undefined
-                ? options.title
-                : route.name;
+        {/* Divider */}
+        <View style={[styles.divider, { width: isExpanded ? '80%' : '60%' }]} />
 
-          const isActive = state.index === index;
-          const iconInfo = getIconInfo(route.name);
+        {/* Navigation Items */}
+        <View style={styles.navItems}>
+          {state.routes.map((route: any, index: number) => {
+            const { options } = descriptors[route.key];
+            const label =
+              options.tabBarLabel !== undefined
+                ? options.tabBarLabel
+                : options.title !== undefined
+                  ? options.title
+                  : route.name;
 
-          const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
+            const isActive = state.index === index;
 
-            if (!isActive && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
-          };
+            const onPress = () => {
+              const event = navigation.emit({
+                type: 'tabPress',
+                target: route.key,
+                canPreventDefault: true,
+              });
 
-          return (
-            <SidebarItem
-              key={route.key}
-              label={typeof label === 'string' ? label : route.name}
-              iconName={iconInfo.name}
-              iconLibrary={iconInfo.library}
-              isActive={isActive}
-              isExpanded={isExpanded}
-              onPress={onPress}
-              onFocus={handleItemFocus}
-              onBlur={handleItemBlur}
-              hasTVPreferredFocus={index === 0 && state.index === 0}
-            />
-          );
-        })}
-      </View>
-    </Animated.View>
+              if (!isActive && !event.defaultPrevented) {
+                navigation.navigate(route.name);
+              }
+              // Keep sidebar focused after navigation
+            };
+
+            return (
+              <SidebarItem
+                key={route.key}
+                label={typeof label === 'string' ? label : route.name}
+                iconName={getIconName(route.name)}
+                isActive={isActive}
+                isExpanded={isExpanded}
+                onPress={onPress}
+                onFocus={handleItemFocus}
+                onBlur={handleItemBlur}
+                index={index}
+                activeIndex={state.index}
+              />
+            );
+          })}
+        </View>
+
+        {/* Bottom info */}
+        {isExpanded && (
+          <View style={styles.bottomSection}>
+            <Text style={styles.versionText}>v1.2.11</Text>
+          </View>
+        )}
+      </Animated.View>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
+  scrim: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#000000',
+    zIndex: 99,
+  },
   container: {
     height: '100%',
     position: 'absolute',
@@ -269,49 +313,66 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     zIndex: 100,
-    paddingBottom: TV_SAFE_AREA.bottom + 16,
-  },
-  gradient: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: EXPANDED_WIDTH + 60,
+    paddingBottom: TV_SAFE_AREA.bottom + 24,
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255, 255, 255, 0.1)',
   },
   logoContainer: {
-    height: 56,
+    height: 60,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
   },
   logoText: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '800',
-    letterSpacing: 2,
+    letterSpacing: 3,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignSelf: 'center',
+    marginBottom: 16,
   },
   navItems: {
     flex: 1,
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
   },
   itemTouchable: {
-    marginVertical: 2,
+    marginVertical: 4,
   },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 48,
-    borderRadius: 10,
+    height: 52,
+    borderRadius: 12,
     overflow: 'hidden',
   },
+  activeIndicator: {
+    position: 'absolute',
+    left: 0,
+    top: 12,
+    bottom: 12,
+    width: 3,
+    borderRadius: 2,
+  },
   iconContainer: {
-    width: 48,
+    width: 52,
     alignItems: 'center',
     justifyContent: 'center',
   },
   label: {
-    fontSize: 15,
+    fontSize: 16,
     marginLeft: 4,
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
+  },
+  bottomSection: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  versionText: {
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontSize: 12,
   },
 });
 
